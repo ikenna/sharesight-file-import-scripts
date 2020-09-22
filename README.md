@@ -1,5 +1,5 @@
 # sharesight-file-import-scripts
-Scripts to import Saxo Markets and IG trade CSV files into Sharesight
+Scripts to import Saxo Markets trade CSV files into Sharesight
 
 
 Python script that converts trades exported from [SaxoTrader](https://www.saxotrader.com) into [Sharesight](https://www.sharesight.com/).
