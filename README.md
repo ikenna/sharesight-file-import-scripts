@@ -4,6 +4,8 @@ Scripts to import Saxo Markets trade CSV files into Sharesight
 
 Python script that converts trades exported from [SaxoTrader](https://www.saxotrader.com) into [Sharesight](https://www.sharesight.com/).
 
+The input to the script is the Excel sheet export of trades from Saxo Markets. In SaxoTrader, you can find this in Account > Historical reports > Trades. Click "Open", the funnel icon on the left, then export.
+                             
 Sample usage:
 ```%>./saxo-to-sharesight.py --file TradesExecuted.xlsx > sharesight.csv```
 
