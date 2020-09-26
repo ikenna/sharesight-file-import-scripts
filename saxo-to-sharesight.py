@@ -31,6 +31,7 @@ SOFTWARE.
 import openpyxl
 import copy
 import argparse
+import csv
 
 
 class Transaction:
@@ -66,7 +67,6 @@ def add_commission(dict_of_commissions, trade_id_transaction_dict):
         commission = dict_of_commissions.get(key + "-Commission", 0)
         exchange_fee = dict_of_commissions.get(key + "-Exchange Fee", 0)
         stamp_duty = dict_of_commissions.get(key + "-UK Stamp Duty", 0)
-        # print("TradeId: %s, Commission: %s, Exchange: %s, Stamp: %s"%(key, commission, exchange_fee, stamp_duty))
         brokerage_value = float(commission) + float(exchange_fee) + float(stamp_duty)
         transaction_line.set_brokerage(str(brokerage_value))
         all_transactions.append(transaction_line)
@@ -74,7 +74,7 @@ def add_commission(dict_of_commissions, trade_id_transaction_dict):
     return all_transactions
 
 
-def create_transaction(row):
+def create_transaction_for_saxo(row):
     trade_id = str(row[0].value)
     trade_date = str(row[3].value.strftime("%Y-%m-%d"))
     symbol = str(row[11].value)
@@ -110,6 +110,24 @@ def create_transaction(row):
                               exchange_rate, brokerage, brokerage_currency, comments)
     return transaction
 
+def create_transaction_for_ig(row):
+    trade_id = str(row[17])
+    trade_date = str(row[0])
+    instrument_code = str(row[3])
+    market_code = ""
+    quantity = str(row[5])
+    price = str(row[6])
+    transaction_type = str(row[4])
+    brokerage = str(float(row[10]) + float(row[9]))
+    brokerage_currency = "USD"
+    comments = ""
+    consideration_in_usd = float(row[8])
+    charges_in_usd = float(row[10])
+    cost_proceeds_in_gbp = float(row[11])
+    exchange_rate = str((consideration_in_usd + charges_in_usd) / cost_proceeds_in_gbp)
+    transaction = Transaction(trade_id, trade_date, instrument_code, market_code, quantity, price, transaction_type,
+                              exchange_rate, brokerage, brokerage_currency, comments)
+    return transaction
 
 def get_trade_id_to_commission_dict(work_book):
     trade_booked_amount_sheet = work_book.get_sheet_by_name('Trade Booked Amount')
@@ -128,24 +146,38 @@ def get_trade_id_transaction_dict(trades_sheet):
     trade_id_transaction_dict = {}
     for row in trades_sheet.iter_rows():
         if row[0].value != "Trade ID":
-            transaction = create_transaction(row)
+            transaction = create_transaction_for_saxo(row)
             trade_id_transaction_dict.update({transaction.trade_id: transaction})
     return trade_id_transaction_dict
 
 
-def main(excel_file):
+def main_saxo(excel_file):
     work_book = openpyxl.load_workbook(excel_file)
     trades_sheet = work_book.get_sheet_by_name('TradesWithAdditionalInfo')
 
     trade_id_transaction_dict = get_trade_id_transaction_dict(trades_sheet)
     dict_of_commissions = get_trade_id_to_commission_dict(work_book)
     output_lines = add_commission(dict_of_commissions, trade_id_transaction_dict)
+    print_output_lines(output_lines)
 
+
+def print_output_lines(output_lines):
     headers = ["Unique Identifier", "Trade Date", "Instrument Code", "Market Code", "Quantity", "Price", "Transaction Type",
                "Exchange Rate", "Brokerage", "Brokerage Currency", "Comments"]
     print(','.join(headers))
     for t in output_lines:
         print(t.to_csv())
+
+def main_ig(csv_file):
+    output_lines = []
+    with open(csv_file, 'rb') as csvfile:
+        file_reader = csv.reader(csvfile, delimiter=',', quotechar='|')
+        for row in file_reader:
+            if row[1] != "Time" :
+                transaction = create_transaction_for_ig(row)
+                output_lines.append(transaction)
+    output_lines.sort(key=lambda x: x.trade_id)
+    print_output_lines(output_lines)
 
 
 if __name__ == "__main__":
@@ -153,5 +185,11 @@ if __name__ == "__main__":
     parser.add_argument('--file', metavar='path', required=True,
                         help='the Excel sheet export of trades from Saxo Markets. In SaxoTrader, you can find this in Account > Historical reports > Trades. ' +
                              'Click "Open", the funnel icon on the left, then export.')
+    parser.add_argument('--broker', metavar='path', required=True, default='saxo', choices=['saxo', 'ig'], help='Valid options "saxo" for SaxoBank or "ig" for IG. Default, saxo')
     args = parser.parse_args()
-    main(args.file)
+    if args.broker == "saxo":
+        main_saxo(args.file)
+    elif args.broker == "ig" :
+        main_ig(args.file)
+    else:
+        raise Exception("Unsupported broker: " + args.broker)
